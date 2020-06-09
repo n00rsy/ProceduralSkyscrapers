@@ -8,28 +8,69 @@ from bpy.props import (
         StringProperty,
         )
 import bmesh
+from bmesh.types import BMVert, BMEdge
 import random
+import copy 
 from mathutils import Vector
+
+def extrude_and_move(bm, geom, vec):
+    extruded = bmesh.ops.extrude_face_region(bm, geom = geom)
+    translate_verts = [v for v in extruded['geom'] if isinstance(v, BMVert)]
+    bmesh.ops.translate(bm, vec=vec, verts= translate_verts)
+    bmesh.ops.delete(bm, geom=geom, context= 'FACES')
+    return extruded
+
+def bmverts_from_bmedges(bmedges):
+    bmverts = []
+    for value in bmedges:
+        bmverts.append(value.verts[0])
+    return bmverts
+
+def edgeloop_and_slide(bm, edges, vec):
+    loop_edges = bmesh.ops.offset_edgeloops(bm, edges = edges)
+    loop_verts = bmverts_from_bmedges([v for v in loop_edges['edges'] if isinstance(v, BMEdge)])
+    return bmesh.ops.translate(bm, vec=vec, verts= loop_verts)
 
 def generate_skyscraper(props, context):
     random.seed(props.seed)
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1)
-    
+# generate base shape
+    #random base height
+    bm.faces.ensure_lookup_table()
     for face in bm.faces[:]:
         if(face.normal.z ==1):
-            height = props.height-random.random()*(props.random_height)
+            base_height = props.height/((random.random()*2)+1)
             bmesh.ops.translate(bm,
             verts=face.verts,
-            vec=height * face.normal)
-    
-    # generate base shape
-        # random x y z scale
-        # maybe extrude random faces
-        # maybe make random edge loops
-        # maybe move edges along normals - check for overlap
-        # maybe move edges in random directions - check for overlap
-        # maybe bevel random edges
+            vec=base_height * face.normal)
+    loop_cut = False
+    # maybe make random edge loop
+    for face in bm.faces[:]:
+        if(face.normal.z==0):
+            if(random.random()<0.2):
+                if(not loop_cut):
+                    leng = 0
+                    link_faces = face.edges[0].link_faces
+                    for other_face in link_faces:
+                        if(face!=other_face):
+                            l = face.edges[0].calc_length()
+                            
+                            for other_edge in other_face.edges:
+                                if(other_edge.calc_length()!=l):
+                                    leng = other_edge.calc_length()
+                    edgeloop_and_slide(bm, face.edges,face.normal*-(leng/4+random.random()*leng/2))
+                    loop_cut = True
+    # maybe make random horizontal extrusion
+    for face in bm.faces[:]:
+        if(face.normal.z==0):
+            if(random.random()<0.3):
+                extruded = extrude_and_move(bm,[face],face.normal*(0.25+random.random()*0.5))
+    # random x y scale
+    bmesh.ops.scale(bm, verts = bm.verts, vec = ((random.random()*4)+2,(random.random()*4)+2,1))
+    # maybe move edges along normals - check for overlap
+
+    # maybe bevel random edges
 
     # generate actual structure
         # select random top faces and extrude up OR extrude, scale in, extrude move up
@@ -43,6 +84,7 @@ def generate_skyscraper(props, context):
         # maybe bevel?
 
     # write bmesh into new mesh
+    bm.normal_update()
     me = bpy.data.meshes.new('Mesh')
     bm.to_mesh(me)
     bm.free()

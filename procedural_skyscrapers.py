@@ -51,6 +51,20 @@ def try_add_face(bm, faces, currentFace):
                     faces.append(face)
                     if(random.random()<1):
                         try_add_face(bm, faces,face)
+# get list of highest faces pointed upwards
+def get_top_faces(bm):
+    top_faces = []
+    max_height = 0
+    for face in bm.faces[:]:
+        if(face.normal.z==1):
+            top_faces.append(face)
+            max_height = max(truncate(max_height,2), truncate(face.calc_center_median().z,2))
+            print(max_height)
+    for face in top_faces[:]:
+        if(truncate(face.calc_center_median().z,2) !=  truncate(max_height,2) ):
+            top_faces.remove(face)
+    return top_faces
+
 
 def generate_skyscraper(props, context):
     random.seed(props.seed)
@@ -104,37 +118,22 @@ def generate_skyscraper(props, context):
     # maybe bevel random corner edges
 
     # ---generate actual structure---
-    #for x in range(3):
-    extrude_faces = []
-    top_faces = []
-    # get list of all faces pointed upwards
-    for face in bm.faces[:]:
-        if(face.normal.z==1):
-            top_faces.append(face)
-
+    steps = int(props.height + random.random()*props.random_height)
     # select random top faces and extrude up OR extrude, scale in, extrude move up
+    for x in range(steps):
+        extrude_faces = []
+        top_faces = get_top_faces(bm)
+        get_top_faces(bm)
+        if(len(top_faces)>0)        
+            extrude_faces.append(top_faces[0])
+            try_add_face(bm, extrude_faces, top_faces[0])
+            if(random.random(
 
-    print('TOP FACES"\n',top_faces)
-    
-
-    extrude_faces.append(top_faces[0])
-    try_add_face(bm, extrude_faces, top_faces[0])
-    if(random.random()<0.5):
-        top_faces = [v for v in extrude_and_move(bm, extrude_faces, (0,0,7+random.random()*5))['geom']if isinstance(v, BMFace)]
-        print('TOP FACES DOWN"\n',top_faces)
-    else:
-        extruded = [v for v in extrude_and_scale(bm, extrude_faces,(0.8,0.8,1))['geom']if isinstance(v, BMFace)]
-        top_faces = [v for v in extrude_and_move(bm, extruded, (0,0,7+random.random()*5))['geom']if isinstance(v, BMFace)]
-        print('TOP FACES DOWN"\n',top_faces)
-            
-    # maybe select random horizontal face and extrude out
-    # maybe make horizontal loops and scale in
-    # repeat
-
-    #finishing touches
-        # maybe select random outer edges paralell to inner ones and move up or down
-        # maybe add antenna
-        # maybe bevel?
+            )<0.5):
+                top_faces = list.copy([v for v in extrude_and_move(bm, extrude_faces, (0,0,7+random.random()*5))['geom']if isinstance(v, BMFace)])
+            else:
+                extruded = [v for v in extrude_and_scale(bm, extrude_faces,(0.8,0.8,1))['geom']if isinstance(v, BMFace)]
+                top_faces = list.copy([v for v in extrude_and_move(bm, extruded, (0,0,7+random.random()*5))['geom']if isinstance(v, BMFace)])
 
     # write bmesh into new mesh
     bm.normal_update()
@@ -154,7 +153,7 @@ class GenerateSkyscraper(bpy.types.Operator):
 
     #properties
     seed: bpy.props.IntProperty(name="Seed", default=0)
-    height: bpy.props.IntProperty(name="Height", default=5, min=1, max=10)
+    height: bpy.props.IntProperty(name="Height", default=3, min=1, max=5)
     complexity: bpy.props.IntProperty(name="Complexity", default=5, min=1, max=10)
     random_height : bpy.props.FloatProperty(name="Random Height", default=0, min=0, max=5)
     random_complexity : bpy.props.FloatProperty(name="Random Complexity", default=0, min=0, max=1)
